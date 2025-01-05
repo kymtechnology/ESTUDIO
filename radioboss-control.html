@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle do RadioBOSS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        h1 {
+            color: #0f0;
+            margin-bottom: 20px;
+        }
+        .container {
+            background-color: #111;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 20px;
+            width: 90%;
+            max-width: 600px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .playlist {
+            width: 100%;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .audio-item {
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            cursor: pointer;
+            text-align: center;
+        }
+        .audio-item:hover {
+            background-color: #222;
+        }
+        .audio-item.current {
+            background-color: #0f0;
+            color: #000;
+            font-weight: bold;
+        }
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        button {
+            background-color: #333;
+            border: none;
+            color: #0f0;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        button:hover {
+            background-color: #444;
+        }
+        @media (max-width: 768px) {
+            .container {
+                width: 100%;
+                padding: 10px;
+            }
+            .playlist {
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Controle Remoto do RadioBOSS</h1>
+    <div class="container">
+        <div class="playlist" id="playlist">
+            <!-- Lista de áudios será carregada aqui -->
+        </div>
+        <div class="buttons">
+            <button onclick="ligarMicrofone()"><i class="fas fa-microphone"></i> Ligar Microfone</button>
+            <button onclick="desligarMicrofone()"><i class="fas fa-microphone-slash"></i> Desligar Microfone</button>
+            <button onclick="carregarPlaylist()"><i class="fas fa-folder-open"></i> Carregar Playlist</button>
+            <button onclick="desativarProgramador()"><i class="fas fa-calendar-times"></i> Desativar Programador</button>
+            <button onclick="play()"><i class="fas fa-play"></i> Play</button>
+            <button onclick="proximo()"><i class="fas fa-forward"></i> Próximo</button>
+            <button onclick="pause()"><i class="fas fa-pause"></i> Pause</button>
+            <button onclick="stop()"><i class="fas fa-stop"></i> Stop</button>
+            <button onclick="repetir()"><i class="fas fa-redo"></i> Repetir</button>
+            <button onclick="gravar()"><i class="fas fa-record-vinyl"></i> Gravar</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:9001";
+        const API_PASSWORD = "w4XkZbjrYQ";
+        let currentAudioIndex = -1; // Índice do áudio atual
+
+        // Função para ligar o microfone
+        function ligarMicrofone() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=setmicrophone&state=true`)
+                .then(response => response.json())
+                .then(data => alert('Microfone ligado: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para desligar o microfone
+        function desligarMicrofone() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=setmicrophone&state=false`)
+                .then(response => response.json())
+                .then(data => alert('Microfone desligado: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para carregar uma playlist
+        function carregarPlaylist() {
+            const playlist = prompt("Introduza o nome da playlist:");
+            if (playlist) {
+                fetch(`${API_URL}/?pass=${API_PASSWORD}&action=loadplaylist&filename=${playlist}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        alert('Playlist carregada: ' + JSON.stringify(data));
+                        obterListaDeAudios();
+                    })
+                    .catch(error => alert('Erro: ' + error));
+            }
+        }
+
+        // Função para desativar o programador
+        function desativarProgramador() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=disableevents`)
+                .then(response => response.json())
+                .then(data => alert('Programador desativado: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para obter a lista de áudios da playlist carregada
+        function obterListaDeAudios() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=getplaylist`)
+                .then(response => response.json())
+                .then(data => {
+                    const playlist = document.getElementById('playlist');
+                    playlist.innerHTML = ''; // Limpar a lista anterior
+                    data.forEach((audio, index) => {
+                        const itemAudio = document.createElement('div');
+                        itemAudio.className = 'audio-item';
+                        itemAudio.textContent = `${index + 1}. ${audio}`;
+                        itemAudio.onclick = () => reproduzirAudio(index);
+                        playlist.appendChild(itemAudio);
+                    });
+                    atualizarAudioAtual();
+                })
+                .catch(error => alert('Erro ao obter a lista de áudios: ' + error));
+        }
+
+        // Função para reproduzir um áudio específico
+        function reproduzirAudio(index) {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=play&index=${index}`)
+                .then(response => response.json())
+                .then(data => {
+                    alert(`Reproduzindo: ${JSON.stringify(data)}`);
+                    currentAudioIndex = index;
+                    atualizarAudioAtual();
+                })
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para atualizar o áudio atual na lista
+        function atualizarAudioAtual() {
+            const audioItems = document.querySelectorAll('.audio-item');
+            audioItems.forEach((item, index) => {
+                if (index === currentAudioIndex) {
+                    item.classList.add('current');
+                    item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    item.classList.remove('current');
+                }
+            });
+        }
+
+        // Função para iniciar a reprodução
+        function play() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=play`)
+                .then(response => response.json())
+                .then(data => alert('Reprodução iniciada: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para avançar para o próximo áudio
+        function proximo() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=next`)
+                .then(response => response.json())
+                .then(data => {
+                    alert('Próximo áudio: ' + JSON.stringify(data));
+                    currentAudioIndex++;
+                    atualizarAudioAtual();
+                })
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para pausar a reprodução
+        function pause() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=pause`)
+                .then(response => response.json())
+                .then(data => alert('Reprodução pausada: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para parar a reprodução
+        function stop() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=stop`)
+                .then(response => response.json())
+                .then(data => alert('Reprodução parada: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para repetir o áudio atual
+        function repetir() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=repeat`)
+                .then(response => response.json())
+                .then(data => alert('Repetir áudio: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Função para iniciar a gravação
+        function gravar() {
+            fetch(`${API_URL}/?pass=${API_PASSWORD}&action=startrecording`)
+                .then(response => response.json())
+                .then(data => alert('Gravação iniciada: ' + JSON.stringify(data)))
+                .catch(error => alert('Erro: ' + error));
+        }
+
+        // Atualizar a lista de áudios a cada 5 segundos
+        setInterval(obterListaDeAudios, 5000);
+        obterListaDeAudios(); // Carregar a lista ao abrir a página
+    </script>
+</body>
+</html>
